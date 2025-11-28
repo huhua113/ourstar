@@ -6,6 +6,7 @@ import { calculateChart } from './utils/ziwei';
 import PalaceCard from './components/PalaceCard';
 import BaziView from './components/BaziView';
 import { STEMS, SI_HUA_RULES } from './utils/constants';
+import StarIllustration from './components/StarIllustration';
 
 const PRESETS = {
   huhu: { date: '1993-01-13', time: '05:42', gender: '女' },
@@ -393,6 +394,7 @@ const App = () => {
            </div>
         )}
         
+        <StarIllustration />
       </div>
     </div>
   );
