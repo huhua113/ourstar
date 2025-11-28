@@ -1,10 +1,11 @@
+// FIX: Corrected the import for React and its hooks.
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Moon, Anchor, Map, Sun, Flame, ChevronDown, RefreshCw, Zap } from 'lucide-react';
+import { Sparkles, Moon, Anchor, Map, Sun, Flame, ChevronDown, RefreshCw, Zap, Send } from 'lucide-react';
 import { ChartData, ViewMode } from './types';
 import { calculateChart } from './utils/ziwei';
 import PalaceCard from './components/PalaceCard';
 import BaziView from './components/BaziView';
-import { STEMS } from './utils/constants';
+import { STEMS, SI_HUA_RULES } from './utils/constants';
 
 const PRESETS = {
   huhu: { date: '1993-01-13', time: '05:42', gender: '女' },
@@ -47,6 +48,8 @@ const App = () => {
     if (libLoaded) {
       const data = calculateChart(inputDate, inputTime, gender, viewMode, selectedDecadeIdx, selectedYear);
       setChartData(data);
+      // When chart changes, reset selected palace if it's not a view mode change
+      // setSelectedPalaceIndex(null);
     }
   }, [libLoaded, inputDate, inputTime, gender, viewMode, selectedDecadeIdx, selectedYear]);
 
@@ -57,6 +60,39 @@ const App = () => {
     return [idx, (idx+6)%12, (idx+4)%12, (idx+8)%12];
   }, [selectedPalaceIndex, chartData]);
 
+  // Flying Si Hua calculation
+  const flyingSiHuaTargets = useMemo(() => {
+    if (selectedPalaceIndex === null || !chartData) return [];
+
+    const sourcePalace = chartData.palaces[selectedPalaceIndex];
+    const sourceStem = sourcePalace.stem;
+    const rule = SI_HUA_RULES[sourceStem];
+    if (!rule) return [];
+
+    const targets: { targetIndex: number; mutagen: { name: string; color: string; }; starName: string; }[] = [];
+    const mutagensDef = [
+        { name: '禄', star: rule.lu, color: 'bg-green-500' },
+        { name: '权', star: rule.quan, color: 'bg-red-500' },
+        { name: '科', star: rule.ke, color: 'bg-blue-500' },
+        { name: '忌', star: rule.ji, color: 'bg-pink-500' },
+    ];
+
+    for (const m of mutagensDef) {
+        const targetPalace = chartData.palaces.find(p => 
+            [...p.mainStars, ...p.auxStars].some(s => s.name === m.star)
+        );
+
+        if (targetPalace) {
+            targets.push({
+                targetIndex: targetPalace.index,
+                mutagen: { name: m.name, color: m.color },
+                starName: m.star
+            });
+        }
+    }
+    return targets;
+  }, [selectedPalaceIndex, chartData]);
+  
   // Grid layout mapping: 
   // 3(巳) 4(午) 5(未) 6(申)
   // 2(辰)           7(酉)
@@ -71,14 +107,14 @@ const App = () => {
     const tri = sanFang.map(k => chartData.palaces[k]);
     
     let context = "【先天本命】";
-    let extra = "";
+    let contextHua = "生年";
     if (viewMode === 'decade') {
        const d = chartData.decadeRanges.find(r => r.index === chartData.currentDecadeIdx);
        context = `【大限运势 (${d?.start}-${d?.end}岁)】`;
-       extra = `大限四化：${chartData.siHuaGan}干。大限命宫在${chartData.palaces[chartData.viewMingIndex].branch}。`;
+       contextHua = "大限";
     } else if (viewMode === 'year') {
        context = `【流年运势 (${selectedYear}年)】`;
-       extra = `流年四化：${chartData.siHuaGan}干。流年命宫在${chartData.palaces[chartData.viewMingIndex].branch}。包含流禄/流羊/流陀等流动星曜。`;
+       contextHua = "流年";
     }
 
     const fmtFull = (pl: typeof p) => {
@@ -89,12 +125,64 @@ const App = () => {
     };
 
     let text = `请作为紫微斗数专家，分析${context}下的【${p.name}】（${p.stem}${p.branch}位）。\n`;
-    text += `基本信息：${gender}命，${chartData.wuxing}，命主${chartData.mingZhu}。\n`;
-    text += `${extra}\n\n`;
-    text += `【本宫】：${fmtFull(p)}\n`;
-    text += `【对宫】：${fmtFull(tri[1])}\n`;
-    text += `【三合】：${fmtFull(tri[2])} | ${fmtFull(tri[3])}\n\n`;
-    text += `分析要求：\n1. 结合本宫及三方四正的星曜组合（主星、吉煞、四化、流曜）。\n2. 识别格局（如杀破狼、机月同梁、昌曲同宫、禄马交驰等）。\n3. 针对${context}用温柔语气给出具体吉凶判断和建议。`;
+    text += `基本信息：${gender}命，${chartData.wuxing}。\n\n`;
+
+    text += '【各级四化总览】\n';
+    
+    if (viewMode === 'native') {
+        const natalGan = chartData.baziData.year.gan;
+        const natalHua = SI_HUA_RULES[natalGan];
+        text += `- 生年四化 (${natalGan}干): 禄-${natalHua.lu}, 权-${natalHua.quan}, 科-${natalHua.ke}, 忌-${natalHua.ji}。\n`;
+    }
+    
+    if (viewMode === 'decade' || viewMode === 'year') {
+        const decadeInfo = chartData.decadeRanges.find(r => r.index === chartData.currentDecadeIdx);
+        if (decadeInfo) {
+            const decadeGan = STEMS[decadeInfo.stemIdx];
+            const decadeHua = SI_HUA_RULES[decadeGan];
+            text += `- 大限四化 (${decadeGan}干): 禄-${decadeHua.lu}, 权-${decadeHua.quan}, 科-${decadeHua.ke}, 忌-${decadeHua.ji}。\n`;
+        }
+    }
+    if (viewMode === 'year') {
+        const yearGan = chartData.siHuaGan;
+        const yearHua = SI_HUA_RULES[yearGan];
+        text += `- 流年四化 (${yearGan}干): 禄-${yearHua.lu}, 权-${yearHua.quan}, 科-${yearHua.ke}, 忌-${yearHua.ji}。\n`;
+    }
+
+    if (flyingSiHuaTargets.length > 0) {
+        const flyingHuaText = flyingSiHuaTargets.map(fly => {
+            const targetPalace = chartData.palaces.find(p => p.index === fly.targetIndex);
+            return `化${fly.mutagen.name}入[${targetPalace?.name}]的[${fly.starName}]`;
+        }).join('； ');
+        text += `- 宫干飞化 (${p.stem}干): 从本宫【${p.name}】飞出: ${flyingHuaText}。\n`;
+    }
+
+    text += `\n【三方四正星曜】(星曜上的[化]标记为${contextHua}四化)\n`;
+    text += `- 本宫【${p.name}】: ${fmtFull(p)}\n`;
+    text += `- 对宫【${tri[1].name}】: ${fmtFull(tri[1])}\n`;
+    text += `- 三合【${tri[2].name}】: ${fmtFull(tri[2])}\n`;
+    text += `- 三合【${tri[3].name}】: ${fmtFull(tri[3])}\n\n`;
+    
+    const analysisReqs = [
+        '1. 结合本宫及三方四正的星曜组合（主星、吉煞、流曜等）。'
+    ];
+
+    if (viewMode === 'native') {
+        analysisReqs.push('2. 综合解读【生年四化】对格局的先天影响。');
+    } else if (viewMode === 'decade') {
+        analysisReqs.push('2. 综合解读【大限四化】对格局的后天影响。');
+    } else if (viewMode === 'year') {
+        analysisReqs.push('2. 综合解读【大限四化】与【流年四化】对格局的后天影响。');
+    }
+
+    analysisReqs.push('3. 重点分析【宫干飞化】中，化禄、化权、化科、化忌飞入相应宫位所触发的具体事件和吉凶含义。');
+    analysisReqs.push('4. 识别格局（如杀破狼、机月同梁等），并用温柔语气给出具体吉凶判断和建议。');
+
+    if (viewMode === 'native' && p.name === '命宫') {
+        analysisReqs.push('5. 根据以上信息判断此人MBTI。');
+    }
+
+    text += '分析要求：\n' + analysisReqs.join('\n');
     return text;
   };
 
@@ -134,7 +222,7 @@ const App = () => {
               {(['native', 'decade', 'year', 'bazi'] as ViewMode[]).map(mode => (
                  <button 
                    key={mode} onClick={() => setViewMode(mode)}
-                   className={`px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode===mode ? 'bg-pink-400 text-white shadow-md shadow-pink-200' : 'text-slate-400 hover:text-slate-600'}`}
+                   className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${viewMode===mode ? 'bg-pink-400 text-white shadow-md shadow-pink-200' : 'text-slate-400 hover:text-slate-600'}`}
                  >
                    {mode==='native' && <Anchor className="w-3 h-3"/>}
                    {mode==='decade' && <Map className="w-3 h-3"/>}
@@ -189,20 +277,43 @@ const App = () => {
                     if (idx === -1) {
                        if (k === 5 && chartData) {
                           return (
-                             <div key={k} className="col-span-2 row-span-2 relative z-0">
-                                <div className="absolute inset-0 m-1 bg-white/60 backdrop-blur-md rounded-[2rem] border-2 border-white flex flex-col items-center justify-center text-center shadow-[inset_0_0_20px_rgba(255,255,255,0.6)]">
-                                   <div className="text-3xl font-serif text-slate-800 mb-1">{chartData.baziData.year.gan}{chartData.baziData.year.zhi}年</div>
-                                   <div className="text-[10px] font-bold text-pink-400 tracking-widest uppercase mb-3 bg-pink-50 px-2 py-0.5 rounded-md">
-                                      {chartData.wuxing} · 命主{chartData.mingZhu} · 身主{chartData.shenZhu}
-                                   </div>
-                                   <div className="flex flex-col items-center">
-                                      <div className="text-[9px] text-slate-400 mb-0.5">{viewMode==='year'?'流年':'本命/大限'}四化天干</div>
-                                      <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-pink-400 to-rose-400 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-pink-200">
-                                         {chartData.siHuaGan}
-                                      </div>
-                                   </div>
+                            <div key={k} className="col-span-2 row-span-2 relative z-0">
+                                <div className="absolute inset-0 m-1 bg-white/60 backdrop-blur-md rounded-[2rem] border-2 border-white flex flex-col items-center justify-between text-center shadow-[inset_0_0_20px_rgba(255,255,255,0.6)] p-3">
+                                
+                                  {/* Top Section: Bazi + Info */}
+                                  <div className="flex flex-col items-center gap-2">
+                                    {/* Bazi Pillars */}
+                                    <div className="flex justify-center gap-5">
+                                      {(['year', 'month', 'day', 'time'] as const).map((key, i) => {
+                                        const pillar = chartData.baziData[key];
+                                        const label = ['年柱', '月柱', '日柱', '时柱'][i];
+                                        return (
+                                          <div key={key} className="flex flex-col items-center">
+                                            <span className="text-[10px] text-slate-500 font-semibold">{label}</span>
+                                            <div className="text-xl font-black text-slate-800 leading-tight mt-1">
+                                              <div>{pillar.gan}</div>
+                                              <div>{pillar.zhi}</div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                    
+                                    {/* Other Info */}
+                                    <div className="text-xs font-bold text-pink-500 tracking-wider">
+                                      {chartData.wuxing} · 命主: {chartData.mingZhu} · 身主: {chartData.shenZhu}
+                                    </div>
+                                  </div>
+
+                                  {/* Bottom Section: Si Hua */}
+                                  <div className="flex items-center gap-2 bg-slate-100/70 px-3 py-1 rounded-full border border-white">
+                                    <div className="text-[10px] text-slate-500 font-semibold">{viewMode==='year'?'流年四化':'当前四化'}</div>
+                                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-pink-400 to-rose-400 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-pink-200">
+                                      {chartData.siHuaGan}
+                                    </div>
+                                  </div>
                                 </div>
-                             </div>
+                            </div>
                           )
                        }
                        return null;
@@ -214,6 +325,7 @@ const App = () => {
                     const isSel = selectedPalaceIndex === idx;
                     const isTri = sanFang.includes(idx) && !isSel;
                     const isMing = p.name === '命宫'; // Based on current view Rotation
+                    const flyingHua = flyingSiHuaTargets.find(t => t.targetIndex === idx);
 
                     return (
                        <PalaceCard 
@@ -223,6 +335,7 @@ const App = () => {
                          isTri={isTri}
                          isMing={isMing}
                          onClick={() => setSelectedPalaceIndex(idx)}
+                         flyingHua={flyingHua?.mutagen}
                        />
                     )
                  })}
@@ -279,6 +392,7 @@ const App = () => {
               </div>
            </div>
         )}
+        
       </div>
     </div>
   );

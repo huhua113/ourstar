@@ -1,5 +1,5 @@
 import React from 'react';
-import { PalaceData } from '../types';
+import { Mutagen, PalaceData } from '../types';
 import { PALACE_ICONS } from '../utils/constants';
 
 interface PalaceCardProps {
@@ -8,9 +8,10 @@ interface PalaceCardProps {
   isTri: boolean; // San Fang
   isMing: boolean;
   onClick: () => void;
+  flyingHua?: Mutagen;
 }
 
-const PalaceCard: React.FC<PalaceCardProps> = ({ palace, isSelected, isTri, isMing, onClick }) => {
+const PalaceCard: React.FC<PalaceCardProps> = ({ palace, isSelected, isTri, isMing, onClick, flyingHua }) => {
   return (
     <div 
       onClick={onClick}
@@ -22,6 +23,13 @@ const PalaceCard: React.FC<PalaceCardProps> = ({ palace, isSelected, isTri, isMi
         ${isMing ? 'ring-2 ring-yellow-300 ring-offset-1 z-10' : ''}
       `}
     >
+       {/* Flying Hua Indicator */}
+       {flyingHua && (
+         <div className={`absolute top-1 left-1 z-20 w-4 h-4 rounded-full ${flyingHua.color} flex items-center justify-center text-white text-[9px] font-bold shadow-md animate-in zoom-in-50`}>
+           {flyingHua.name}
+         </div>
+       )}
+
        <div className="absolute right-0 bottom-0 w-10 h-10 transform translate-x-2 translate-y-2 rotate-[-15deg] pointer-events-none opacity-80">
           {PALACE_ICONS[palace.name]}
        </div>
