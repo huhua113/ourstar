@@ -17,6 +17,7 @@ export interface Star {
 export interface Mutagen {
   name: string; // 禄权科忌
   color: string;
+  type: 'natal' | 'decade' | 'year';
 }
 
 export interface PalaceData {

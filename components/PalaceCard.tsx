@@ -63,9 +63,21 @@ const PalaceCard: React.FC<PalaceCardProps> = ({ palace, isSelected, isTri, isMi
        </div>
 
        <div className="flex justify-end gap-0.5 mt-auto relative z-10 pt-1">
-          {palace.mutagens.map((m,i)=>(
-             <span key={i} className={`${m.color} text-white text-[8px] w-3 h-3 flex items-center justify-center rounded-[2px] font-bold shadow-sm`}>{m.name}</span>
-          ))}
+          {palace.mutagens.map((m,i)=>{
+            let shapeClass = 'rounded-sm'; // Natal (生年)
+            if (m.type === 'decade') shapeClass = 'rounded-full'; // Decade (大限)
+            if (m.type === 'year') shapeClass = 'transform rotate-45 rounded-sm'; // Year (流年)
+
+            const content = m.type === 'year' 
+                ? <span className="transform -rotate-45 block leading-none">{m.name}</span> 
+                : m.name;
+            
+            return (
+              <span key={i} className={`${m.color} text-white text-[8px] w-3 h-3 flex items-center justify-center font-bold shadow-sm ${shapeClass}`}>
+                {content}
+              </span>
+            )
+          })}
        </div>
     </div>
   );

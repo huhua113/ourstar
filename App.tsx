@@ -10,7 +10,9 @@ import StarIllustration from './components/StarIllustration';
 
 const PRESETS = {
   huhu: { date: '1993-01-13', time: '05:42', gender: '女' },
-  qianqian: { date: '1995-11-20', time: '04:50', gender: '男' }
+  qianqian: { date: '1995-11-20', time: '04:50', gender: '男' },
+  dad: { date: '1963-10-03', time: '01:30', gender: '男' },
+  mom: { date: '1967-09-27', time: '19:30', gender: '女' }
 };
 
 const App = () => {
@@ -49,8 +51,6 @@ const App = () => {
     if (libLoaded) {
       const data = calculateChart(inputDate, inputTime, gender, viewMode, selectedDecadeIdx, selectedYear);
       setChartData(data);
-      // When chart changes, reset selected palace if it's not a view mode change
-      // setSelectedPalaceIndex(null);
     }
   }, [libLoaded, inputDate, inputTime, gender, viewMode, selectedDecadeIdx, selectedYear]);
 
@@ -95,10 +95,6 @@ const App = () => {
   }, [selectedPalaceIndex, chartData]);
   
   // Grid layout mapping: 
-  // 3(巳) 4(午) 5(未) 6(申)
-  // 2(辰)           7(酉)
-  // 1(卯)           8(戌)
-  // 0(寅) 11(丑) 10(子) 9(亥)
   const visualGrid = [3,4,5,6, 2,-1,-1,7, 1,-1,-1,8, 0,11,10,9];
 
   // AI Prompt Generator
@@ -108,29 +104,28 @@ const App = () => {
     const tri = sanFang.map(k => chartData.palaces[k]);
     
     let context = "【先天本命】";
-    let contextHua = "生年";
     if (viewMode === 'decade') {
        const d = chartData.decadeRanges.find(r => r.index === chartData.currentDecadeIdx);
        context = `【大限运势 (${d?.start}-${d?.end}岁)】`;
-       contextHua = "大限";
     } else if (viewMode === 'year') {
        context = `【流年运势 (${selectedYear}年)】`;
-       contextHua = "流年";
     }
 
     const fmtFull = (pl: typeof p) => {
         const stars = [...pl.mainStars, ...pl.auxStars, ...pl.badStars, ...pl.smallStars, ...pl.liuStars];
         const starsStr = stars.map(s => `${s.name}${s.light?`(${s.light})`:''}`).join(' ');
-        const mutStr = pl.mutagens.map(m => `[${m.name}]`).join('');
+        const mutStr = pl.mutagens.map(m => `[${m.type === 'natal' ? '生' : m.type === 'decade' ? '运' : '年'}${m.name}]`).join('');
         return `星曜: ${starsStr} ${mutStr}`;
     };
 
+    const baziStr = `年:${chartData.baziData.year.gan}${chartData.baziData.year.zhi} 月:${chartData.baziData.month.gan}${chartData.baziData.month.zhi} 日:${chartData.baziData.day.gan}${chartData.baziData.day.zhi} 时:${chartData.baziData.time.gan}${chartData.baziData.time.zhi}`;
     let text = `请作为紫微斗数专家，分析${context}下的【${p.name}】（${p.stem}${p.branch}位）。\n`;
-    text += `基本信息：${gender}命，${chartData.wuxing}。\n\n`;
+    text += `基本信息：${gender}命，${chartData.wuxing}。命主:${chartData.mingZhu}，身主:${chartData.shenZhu}。\n`;
+    text += `八字：${baziStr}\n\n`;
 
     text += '【各级四化总览】\n';
     
-    if (viewMode === 'native') {
+    if (viewMode === 'native' || viewMode === 'decade' || viewMode === 'year') {
         const natalGan = chartData.baziData.year.gan;
         const natalHua = SI_HUA_RULES[natalGan];
         text += `- 生年四化 (${natalGan}干): 禄-${natalHua.lu}, 权-${natalHua.quan}, 科-${natalHua.ke}, 忌-${natalHua.ji}。\n`;
@@ -158,30 +153,41 @@ const App = () => {
         text += `- 宫干飞化 (${p.stem}干): 从本宫【${p.name}】飞出: ${flyingHuaText}。\n`;
     }
 
-    text += `\n【三方四正星曜】(星曜上的[化]标记为${contextHua}四化)\n`;
+    text += `\n【三方四正星曜】(星曜上的[化]标记为各级四化)\n`;
     text += `- 本宫【${p.name}】: ${fmtFull(p)}\n`;
     text += `- 对宫【${tri[1].name}】: ${fmtFull(tri[1])}\n`;
     text += `- 三合【${tri[2].name}】: ${fmtFull(tri[2])}\n`;
     text += `- 三合【${tri[3].name}】: ${fmtFull(tri[3])}\n\n`;
     
     const analysisReqs = [
-        '1. 结合本宫及三方四正的星曜组合（主星、吉煞、流曜等）。'
+      '1. 结合本宫及三方四正的星曜组合（主星、吉煞、流曜等）。'
     ];
+    let nextNum = 2;
 
-    if (viewMode === 'native') {
-        analysisReqs.push('2. 综合解读【生年四化】对格局的先天影响。');
-    } else if (viewMode === 'decade') {
-        analysisReqs.push('2. 综合解读【大限四化】对格局的后天影响。');
+    if (viewMode === 'decade') {
+        analysisReqs.push(`${nextNum}. 综合解读【大限四化】对格局的后天影响，并注意与【生年四化】的冲叠关系。`);
+        nextNum++;
     } else if (viewMode === 'year') {
-        analysisReqs.push('2. 综合解读【大限四化】与【流年四化】对格局的后天影响。');
+        analysisReqs.push(`${nextNum}. 综合解读【大限四化】与【流年四化】对格局的后天影响，并注意与【生年四化】的冲叠关系。`);
+        nextNum++;
     }
 
-    analysisReqs.push('3. 重点分析【宫干飞化】中，化禄、化权、化科、化忌飞入相应宫位所触发的具体事件和吉凶含义。');
-    analysisReqs.push('4. 识别格局（如杀破狼、机月同梁等），并用温柔语气给出具体吉凶判断和建议。');
+    analysisReqs.push(`${nextNum}. 重点分析【宫干飞化】中，化禄、化权、化科、化忌飞入相应宫位所触发的具体事件和吉凶含义。`);
+    nextNum++;
+    analysisReqs.push(`${nextNum}. 识别格局（如杀破狼、机月同梁等），并用温柔语气给出具体吉凶判断和建议。`);
+    nextNum++;
 
     if (viewMode === 'native' && p.name === '命宫') {
-        analysisReqs.push('5. 根据以上信息判断此人MBTI。');
+        analysisReqs.push(`${nextNum}. 根据以上信息判断此人MBTI。`);
     }
+
+    analysisReqs.push('\n---');
+    analysisReqs.push('风格要求:');
+    analysisReqs.push('- 对核心主星、四化星的含义进行适当解释，以帮助理解。');
+    analysisReqs.push('- 整体分析需简洁明了，直击重点。');
+    analysisReqs.push('- 四化理论尽量简短，强调“以流年定事件，以大运看趋势，以宫干析因果，以生年断根本”。');
+    analysisReqs.push('- 分析需要有鲜明特点，避免对不同星曜组合给出笼统、相似的解释。要深入挖掘具体星盘组合的独特性。');
+
 
     text += '分析要求：\n' + analysisReqs.join('\n');
     return text;
@@ -203,9 +209,12 @@ const App = () => {
                  <h1 className="text-xl font-bold text-slate-800 tracking-tight">Zi Wei Pro Max</h1>
               </div>
            </div>
-           <div className="flex gap-2">
+           <div className="flex gap-2 items-center">
               <button onClick={()=>loadPreset('huhu')} className="px-3 py-1.5 text-xs font-bold text-pink-600 bg-white border border-pink-100 rounded-lg hover:bg-pink-50">糊糊 (女)</button>
               <button onClick={()=>loadPreset('qianqian')} className="px-3 py-1.5 text-xs font-bold text-blue-600 bg-white border border-blue-100 rounded-lg hover:bg-blue-50">乾乾 (男)</button>
+              <div className="w-px h-4 bg-slate-200 mx-1"></div>
+              <button onClick={()=>loadPreset('dad')} className="px-2 py-1 text-[10px] font-medium text-slate-500 bg-slate-100/50 border border-slate-200 rounded-md hover:bg-slate-100">爸爸</button>
+              <button onClick={()=>loadPreset('mom')} className="px-2 py-1 text-[10px] font-medium text-slate-500 bg-slate-100/50 border border-slate-200 rounded-md hover:bg-slate-100">妈妈</button>
            </div>
            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-2xl shadow-inner border border-slate-100">
               <input type="date" value={inputDate} onChange={e=>setInputDate(e.target.value)} className="bg-transparent text-sm text-slate-600 outline-none font-medium w-28" />
@@ -274,16 +283,13 @@ const App = () => {
            <div className="relative aspect-square max-w-[600px] mx-auto mb-8">
               <div className="grid grid-cols-4 grid-rows-4 gap-2 h-full">
                  {visualGrid.map((idx, k) => {
-                    // Center Info Box
                     if (idx === -1) {
                        if (k === 5 && chartData) {
                           return (
                             <div key={k} className="col-span-2 row-span-2 relative z-0">
                                 <div className="absolute inset-0 m-1 bg-white/60 backdrop-blur-md rounded-[2rem] border-2 border-white flex flex-col items-center justify-between text-center shadow-[inset_0_0_20px_rgba(255,255,255,0.6)] p-3">
                                 
-                                  {/* Top Section: Bazi + Info */}
-                                  <div className="flex flex-col items-center gap-2">
-                                    {/* Bazi Pillars */}
+                                  <div className="flex flex-col items-center gap-1">
                                     <div className="flex justify-center gap-5">
                                       {(['year', 'month', 'day', 'time'] as const).map((key, i) => {
                                         const pillar = chartData.baziData[key];
@@ -299,16 +305,19 @@ const App = () => {
                                         );
                                       })}
                                     </div>
-                                    
-                                    {/* Other Info */}
                                     <div className="text-xs font-bold text-pink-500 tracking-wider">
                                       {chartData.wuxing} · 命主: {chartData.mingZhu} · 身主: {chartData.shenZhu}
                                     </div>
+                                    {/* 四化图例 */}
+                                    <div className="flex items-center justify-center gap-3 text-[9px] text-slate-400 mt-1.5">
+                                      <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-sm bg-slate-300"></div>生年</div>
+                                      <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-300"></div>大限</div>
+                                      <div className="flex items-center gap-1"><div className="w-2 h-2 bg-slate-300 transform rotate-45"></div>流年</div>
+                                    </div>
                                   </div>
 
-                                  {/* Bottom Section: Si Hua */}
                                   <div className="flex items-center gap-2 bg-slate-100/70 px-3 py-1 rounded-full border border-white">
-                                    <div className="text-[10px] text-slate-500 font-semibold">{viewMode==='year'?'流年四化':'当前四化'}</div>
+                                    <div className="text-[10px] text-slate-500 font-semibold">{viewMode==='native'?'生年四化':viewMode==='decade'?'大限四化':'流年四化'}</div>
                                     <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-pink-400 to-rose-400 flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-pink-200">
                                       {chartData.siHuaGan}
                                     </div>
@@ -325,16 +334,12 @@ const App = () => {
                     
                     const isSel = selectedPalaceIndex === idx;
                     const isTri = sanFang.includes(idx) && !isSel;
-                    const isMing = p.name === '命宫'; // Based on current view Rotation
+                    const isMing = p.name === '命宫';
                     const flyingHua = flyingSiHuaTargets.find(t => t.targetIndex === idx);
 
                     return (
                        <PalaceCard 
-                         key={idx}
-                         palace={p}
-                         isSelected={isSel}
-                         isTri={isTri}
-                         isMing={isMing}
+                         key={idx} palace={p} isSelected={isSel} isTri={isTri} isMing={isMing}
                          onClick={() => setSelectedPalaceIndex(idx)}
                          flyingHua={flyingHua?.mutagen}
                        />
@@ -366,7 +371,7 @@ const App = () => {
                                 {p.badStars.map(s=><span key={s.name} className="text-rose-400">{s.name}</span>)}
                                 {p.smallStars.map(s=><span key={s.name} className="text-slate-400 scale-90">{s.name}</span>)}
                                 {p.liuStars.map(s=><span key={s.name} className="text-indigo-500 font-bold">{s.name}</span>)}
-                                {p.mutagens.map(m=><span key={m.name} className={`px-1 rounded text-white ${m.color}`}>化{m.name}</span>)}
+                                {p.mutagens.map((m,ix)=><span key={ix} className={`px-1 rounded text-white ${m.color}`}>{m.type==='natal'?'生':m.type==='decade'?'运':'年'}化{m.name}</span>)}
                              </div>
                           </div>
                        )
